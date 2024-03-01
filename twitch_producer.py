@@ -1,8 +1,8 @@
 import asyncio
 import os
-from bot2 import Bot
+from twitch_bot import TwitchBot
 from twitch_client import TwitchClient
-from confluent_kafka import Producer
+from confluent_kafka import Producer, KafkaException
 from dotenv import load_dotenv
 
 
@@ -19,26 +19,36 @@ def delivery_callback(err, msg):
         )
 
 
+def prepare_message(message):
+    try:
+        channel = message.channel.name
+        value = message.content
+        timestamp = int(message.timestamp.timestamp() * 1000)
+        key = f"{channel}-{timestamp}"
+        return {"key": key, "value": value, "timestamp": timestamp, "channel": channel}
+    except AttributeError as e:
+        print(f"AttributeError: {e}")
+    except KeyError as e:
+        print(f"KeyError: {e}")
+
+
 async def write_results_to_kafka(producer, topic, message_queue):
     try:
         while True:
             message = await message_queue.get()
-            channel = message.channel.name
-            value = message.content
-            timestamp = int(message.timestamp.timestamp() * 1000)
-            key = f"{channel}-{timestamp}"
+            prepared_message = prepare_message(message)
             producer.produce(
                 topic,
-                key=key,
-                value=value,
-                timestamp=timestamp,
+                key=prepared_message.get("key"),
+                value=prepared_message.get("value"),
+                timestamp=prepare_message.get("timestamp"),
                 callback=delivery_callback,
             )
             producer.poll(0)
-    except KeyError as e:
-        print(f"KeyError: {e}")
-    except Exception as e:
-        print(f"Exception: {e}")
+    except AttributeError as e:
+        print(f"AttributeError: {e}")
+    except KafkaException as e:
+        print(f"KafkaException: {e}")
 
 
 async def main():
@@ -49,7 +59,7 @@ async def main():
     )
 
     # Create the bot...
-    bot = Bot(
+    bot = TwitchBot(
         token=os.getenv("TWITCH_USER_TOKEN"),
         prefix="!",
         initial_channels=twitch_streamers,

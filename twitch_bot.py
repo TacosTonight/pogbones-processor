@@ -1,7 +1,7 @@
 from twitchio.ext import commands
 
 
-class Bot(commands.Bot):
+class TwitchBot(commands.Bot):
     def __init__(self, token, prefix, initial_channels, message_queue):
         super().__init__(token=token, prefix=prefix, initial_channels=initial_channels)
         self.message_queue = message_queue
