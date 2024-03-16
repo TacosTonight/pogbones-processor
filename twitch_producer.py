@@ -1,5 +1,6 @@
 import asyncio
 import os
+import socket
 from twitch_bot import TwitchBot
 from twitch_client import TwitchClient
 from confluent_kafka import Producer, KafkaException
@@ -41,7 +42,7 @@ async def write_results_to_kafka(producer, topic, message_queue):
                 topic,
                 key=prepared_message.get("key"),
                 value=prepared_message.get("value"),
-                timestamp=prepare_message.get("timestamp"),
+                timestamp=prepared_message.get("timestamp"),
                 callback=delivery_callback,
             )
             producer.poll(0)
@@ -62,17 +63,27 @@ async def main():
     bot = TwitchBot(
         token=os.getenv("TWITCH_USER_TOKEN"),
         prefix="!",
-        initial_channels=twitch_streamers,
+        initial_channels=["parkenharbor"],
         message_queue=message_queue,
     )
 
-    producer = Producer({"bootstrap.servers": "localhost:"})
+    conf = {
+        "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVER"),
+        "security.protocol": "SASL_SSL",
+        "sasl.mechanism": "PLAIN",
+        "sasl.username": os.getenv("KAFKA_KEY"),
+        "sasl.password": os.getenv("KAFKA_SECRET"),
+        "client.id": socket.gethostname(),
+    }
+    producer = Producer(conf)
 
     num_workers = 10
     workers = [
         asyncio.create_task(
             write_results_to_kafka(
-                producer=producer, topic="chat", message_queue=message_queue
+                producer=producer,
+                topic=os.getenv("KAFKA_TOPIC_NAME"),
+                message_queue=message_queue,
             )
         )
         for _ in range(num_workers)
