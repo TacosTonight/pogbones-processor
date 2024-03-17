@@ -97,7 +97,6 @@ class TestDataFrameProcessor(unittest.TestCase):
         result = self.dataframe_processor.find_most_common_word_in_window(
             initial_messages_df, "10 seconds", "value"
         )
-        result.show()
         self.assertEqual(result.columns, ["window", "word", "word_count"])
         self.assertEqual(result.count(), 1)
 

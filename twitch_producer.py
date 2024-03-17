@@ -63,7 +63,7 @@ async def main():
     bot = TwitchBot(
         token=os.getenv("TWITCH_USER_TOKEN"),
         prefix="!",
-        initial_channels=["parkenharbor"],
+        initial_channels=twitch_streamers,
         message_queue=message_queue,
     )
 

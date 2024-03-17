@@ -1,5 +1,4 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
 from pyspark.sql.types import StructType, StructField, StringType, LongType
 from data_frame_processor import DataFrameProcessor
 from transformers import pipeline
@@ -37,7 +36,7 @@ if __name__ == "__main__":
         os.getenv("KAFKA_TOPIC_NAME"): {
             "0": -1,
             "1": -1,
-            "2": 2039,
+            "2": -1,
             "3": -1,
             "4": -1,
             "5": -1,
@@ -56,35 +55,37 @@ if __name__ == "__main__":
             ),
         )
         .option("kafka.sasl.mechanism", "PLAIN")
-        .option("startingOffsets", json.dumps(starting_offset))
+        .option("startingOffsets", "latest")
         .option("failOnDataLoss", "false")
         .option("subscribe", os.getenv("KAFKA_TOPIC_NAME"))
         .load()
     )
+    decoded_messages_df = initial_messages_df.withColumn(
+        "value", initial_messages_df["value"].cast("string")
+    )
 
-    # # Convert the timestamp to a human-readable format...
-    # initial_messages_df = initial_messages_df.withColumn(
-    #     "timestamp", (col("timestamp") / 1000).cast("timestamp")
-    # )
+    # Instantiate hugging face models...
+    sentiment_model = pipeline(
+        "sentiment-analysis",
+        model="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
+    )
+    cross_encoder_model = CrossEncoder("cross-encoder/stsb-distilroberta-base")
 
-    # # Instantiate hugging face models...
-    # # sentiment_model = pipeline(
-    # #     "sentiment-analysis",
-    # #     model="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
-    # # )
-    # # cross_encoder_model = CrossEncoder("cross-encoder/stsb-distilroberta-base")
+    # Instantiate the dataframe utils...
+    df_processor = DataFrameProcessor(
+        sentiment_model=sentiment_model, cross_encoder_model=cross_encoder_model
+    )
 
-    # # Instantiate the dataframe utils...
-    # # df_processor = DataFrameProcessor(
-    # #     sentiment_model=sentiment_model, cross_encoder_model=cross_encoder_model
-    # # )
-
-    df_processor = DataFrameProcessor(sentiment_model=None, cross_encoder_model=None)
     window_spec = "1 minute"
 
     # Add sentiment to the messages...
     classified_messages_df = df_processor.add_sentiment(
-        dataframe=initial_messages_df,
+        dataframe=decoded_messages_df,
+    )
+
+    # Get word count of each message
+    word_count_df = df_processor.get_word_count(
+        classified_messages_df, window_spec, "value"
     )
 
     # Find most common sentiment...
@@ -94,7 +95,7 @@ if __name__ == "__main__":
 
     # Find the most common word in a window...
     most_common_word_df = df_processor.find_most_common_word_in_window(
-        initial_messages_df, window_spec, "value"
+        decoded_messages_df, window_spec, "value"
     )
 
     # Rename the columns...

@@ -5,12 +5,10 @@ from pyspark.sql.functions import (
     split,
     count,
     col,
-    row_number,
     udf,
     struct,
     max as max_,
 )
-from pyspark.sql import Window
 from pyspark.sql.types import StringType
 
 
