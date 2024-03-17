@@ -2,7 +2,6 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, LongType
 from data_frame_processor import DataFrameProcessor
 from transformers import pipeline
-from sentence_transformers.cross_encoder import CrossEncoder
 from dotenv import load_dotenv
 
 import os
@@ -35,9 +34,9 @@ if __name__ == "__main__":
     starting_offset = {
         os.getenv("KAFKA_TOPIC_NAME"): {
             "0": -1,
-            "1": -1,
-            "2": -1,
-            "3": -1,
+            "1": -2,
+            "2": -2,
+            "3": -2,
             "4": -1,
             "5": -1,
         }
@@ -55,7 +54,7 @@ if __name__ == "__main__":
             ),
         )
         .option("kafka.sasl.mechanism", "PLAIN")
-        .option("startingOffsets", "latest")
+        .option("startingOffsets", json.dumps(starting_offset))
         .option("failOnDataLoss", "false")
         .option("subscribe", os.getenv("KAFKA_TOPIC_NAME"))
         .load()
@@ -69,12 +68,9 @@ if __name__ == "__main__":
         "sentiment-analysis",
         model="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
     )
-    cross_encoder_model = CrossEncoder("cross-encoder/stsb-distilroberta-base")
 
     # Instantiate the dataframe utils...
-    df_processor = DataFrameProcessor(
-        sentiment_model=sentiment_model, cross_encoder_model=cross_encoder_model
-    )
+    df_processor = DataFrameProcessor(None)
 
     window_spec = "1 minute"
 
@@ -83,38 +79,13 @@ if __name__ == "__main__":
         dataframe=decoded_messages_df,
     )
 
-    # Get word count of each message
-    word_count_df = df_processor.get_word_count(
-        classified_messages_df, window_spec, "value"
-    )
-
     # Find most common sentiment...
     most_common_sentiment_df = df_processor.find_most_common_word_in_window(
         classified_messages_df, window_spec, "sentiment"
     )
 
-    # Find the most common word in a window...
-    most_common_word_df = df_processor.find_most_common_word_in_window(
-        decoded_messages_df, window_spec, "value"
-    )
-
-    # Rename the columns...
-    most_common_sentiment_df = most_common_sentiment_df.withColumnRenamed(
-        "word", "avg_sentiment"
-    ).drop("word_count")
-    most_common_word_df = most_common_word_df.withColumnRenamed(
-        "word", "most_common_word"
-    ).drop("word_count")
-
-    # Join the average sentiment and the most common word...
-    top_words_and_average_sentiment = most_common_word_df.join(
-        most_common_sentiment_df, on="window", how="inner"
-    )
-
     # Add a button to the dataframe...
-    final_df = df_processor.add_button(
-        dataframe=top_words_and_average_sentiment,
-    )
+    final_df = df_processor.add_button(most_common_sentiment_df)
 
     # Write the results to the console...
     query = (
