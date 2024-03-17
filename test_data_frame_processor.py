@@ -63,12 +63,12 @@ class TestDataFrameProcessor(unittest.TestCase):
             )
             self.assertEqual(result.count(), 1)
 
-    def test_get_word_count_in_window(self):
+    def test_find_most_common_word_in_window(self):
         """
         SCENARIO
-            - Count the words in a DataFrame
+            - Find most common word in a DataFrame
         EXPECTED RESULT
-            - The DataFrame should have a new column called "word_count" with the count of each word
+            - The DataFrame should be one row with the most common word
         """
         # Define the schema for the DataFrame
         schema = StructType(
@@ -86,7 +86,7 @@ class TestDataFrameProcessor(unittest.TestCase):
         data = [
             (
                 "1",
-                "Hi Hey Hello",
+                "Hi Hey Hello Hello Za Za Za Za",
                 "2024-02-17 18:31:00.767",
                 "channel1",
             ),
@@ -94,53 +94,10 @@ class TestDataFrameProcessor(unittest.TestCase):
 
         # Create a DataFrame
         initial_messages_df = self.spark.createDataFrame(data, schema)
-        result = self.dataframe_processor.get_word_count_in_window(
+        result = self.dataframe_processor.find_most_common_word_in_window(
             initial_messages_df, "10 seconds", "value"
         )
         self.assertEqual(result.columns, ["window", "word", "word_count"])
-        self.assertEqual(result.count(), 3)
-
-    def test_find_most_common_word_in_window(self):
-        """
-        SCENARIO
-            - Find the most common word in a DataFrame
-        EXPECTED RESULT
-            - The DataFrame should have a new column called "rank" with the rank of each word
-        """
-        # Define the schema for the DataFrame
-        schema = StructType(
-            [
-                StructField("window", StringType(), False),
-                StructField("word", StringType(), False),
-                StructField("word_count", StringType(), False),
-            ]
-        )
-
-        # Define the data as a list of tuples
-        data = [
-            (
-                "2024-02-17 18:31:00.767",
-                "Hi",
-                "1",
-            ),
-            (
-                "2024-02-17 18:31:00.767",
-                "Hey",
-                "2",
-            ),
-            (
-                "2024-02-17 18:31:00.767",
-                "Hello",
-                "3",
-            ),
-        ]
-
-        # Create a DataFrame
-        initial_messages_df = self.spark.createDataFrame(data, schema)
-        result = self.dataframe_processor.find_most_common_word_in_window(
-            initial_messages_df
-        )
-        self.assertEqual(result.columns, ["word", "window"])
         self.assertEqual(result.count(), 1)
 
     def test_add_button(self):
