@@ -1,5 +1,4 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, LongType
 from data_frame_processor import DataFrameProcessor
 from dotenv import load_dotenv
 from pyspark.sql.functions import concat_ws, col, create_map, lit, to_json
@@ -24,15 +23,6 @@ if __name__ == "__main__":
     )
     spark.sparkContext.setLogLevel("ERROR")
 
-    twitch_message_schema = StructType(
-        [
-            StructField("key", StringType(), True),
-            StructField("value", StringType(), True),
-            StructField("timestamp", LongType(), True),
-            StructField("channel", StringType(), True),
-        ]
-    )
-
     # -1 means the latest offset...
     starting_offset = {
         os.getenv("KAFKA_TOPIC_NAME"): {
@@ -45,18 +35,19 @@ if __name__ == "__main__":
         }
     }
 
+    confluent_credentials = {
+        "kafka.bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVER"),
+        "kafka.security.protocol": "SASL_SSL",
+        "kafka.ssl.endpoint.identification.algorithm": "https",
+        "kafka.sasl.jaas.config": "org.apache.kafka.common.security.plain.PlainLoginModule required username='{}' password='{}';".format(
+            os.getenv("KAFKA_KEY"), os.getenv("KAFKA_SECRET")
+        ),
+        "kafka.sasl.mechanism": "PLAIN",
+    }
+
     initial_messages_df = (
         spark.readStream.format("kafka")
-        .option("kafka.bootstrap.servers", os.getenv("KAFKA_BOOTSTRAP_SERVER"))
-        .option("kafka.security.protocol", "SASL_SSL")
-        .option("kafka.ssl.endpoint.identification.algorithm", "https")
-        .option(
-            "kafka.sasl.jaas.config",
-            "org.apache.kafka.common.security.plain.PlainLoginModule required username='{}' password='{}';".format(
-                os.getenv("KAFKA_KEY"), os.getenv("KAFKA_SECRET")
-            ),
-        )
-        .option("kafka.sasl.mechanism", "PLAIN")
+        .options(**confluent_credentials)
         .option("startingOffsets", json.dumps(starting_offset))
         .option("failOnDataLoss", "false")
         .option("subscribe", os.getenv("KAFKA_TOPIC_NAME"))
@@ -98,16 +89,7 @@ if __name__ == "__main__":
     query = (
         final_df_transformed.writeStream.outputMode("append")
         .format("kafka")
-        .option("kafka.bootstrap.servers", os.getenv("KAFKA_BOOTSTRAP_SERVER"))
-        .option("kafka.security.protocol", "SASL_SSL")
-        .option("kafka.ssl.endpoint.identification.algorithm", "https")
-        .option(
-            "kafka.sasl.jaas.config",
-            "org.apache.kafka.common.security.plain.PlainLoginModule required username='{}' password='{}';".format(
-                os.getenv("KAFKA_KEY"), os.getenv("KAFKA_SECRET")
-            ),
-        )
-        .option("kafka.sasl.mechanism", "PLAIN")
+        .options(**confluent_credentials)
         .option("topic", os.getenv("KAFKA_TOPIC_BUTTON_NAME"))
         .option("checkpointLocation", "/tmp/checkpoint")
         .start()
