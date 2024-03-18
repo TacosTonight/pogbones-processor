@@ -1,8 +1,6 @@
 import random
 from pyspark.sql.functions import (
     window,
-    explode,
-    split,
     count,
     col,
     udf,
@@ -51,7 +49,6 @@ class DataFrameProcessor:
         positive_choices = ["up", "right", "A"]
         negative_choices = ["down", "left", "B"]
 
-        # first rank is the most similar, last rank is the least similar
         if sentiment == "positive":
             return random.choice(positive_choices)
         elif sentiment == "negative":

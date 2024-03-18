@@ -1,7 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, LongType
 from data_frame_processor import DataFrameProcessor
-from transformers import pipeline
 from dotenv import load_dotenv
 
 import os
@@ -22,6 +21,8 @@ if __name__ == "__main__":
         .config("spark.sql.adaptive.enabled", "false")
         .getOrCreate()
     )
+    spark.sparkContext.setLogLevel("ERROR")
+
     twitch_message_schema = StructType(
         [
             StructField("key", StringType(), True),
@@ -61,12 +62,6 @@ if __name__ == "__main__":
     )
     decoded_messages_df = initial_messages_df.withColumn(
         "value", initial_messages_df["value"].cast("string")
-    )
-
-    # Instantiate hugging face models...
-    sentiment_model = pipeline(
-        "sentiment-analysis",
-        model="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
     )
 
     # Instantiate the dataframe utils...
