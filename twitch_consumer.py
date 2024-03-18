@@ -2,12 +2,13 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, LongType
 from data_frame_processor import DataFrameProcessor
 from dotenv import load_dotenv
+from pyspark.sql.functions import concat_ws, col, create_map, lit, to_json
 
 import os
 import json
 
 os.environ["PYSPARK_SUBMIT_ARGS"] = (
-    "--packages org.apache.spark:spark-streaming-kafka-0-10_2.12:3.2.0,org.apache.spark:spark-sql-kafka-0-10_2.12:3.2.0 pyspark-shell"
+    "--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1 pyspark-shell"
 )
 
 
@@ -32,12 +33,13 @@ if __name__ == "__main__":
         ]
     )
 
+    # -1 means the latest offset...
     starting_offset = {
         os.getenv("KAFKA_TOPIC_NAME"): {
             "0": -1,
-            "1": -2,
-            "2": -2,
-            "3": -2,
+            "1": -1,
+            "2": -1,
+            "3": -1,
             "4": -1,
             "5": -1,
         }
@@ -82,11 +84,32 @@ if __name__ == "__main__":
     # Add a button to the dataframe...
     final_df = df_processor.add_button(most_common_sentiment_df)
 
-    # Write the results to the console...
+    # Transform the dataframe...
+    final_df_transformed = final_df.select(
+        concat_ws("_", col("window.start"), col("window.end")).alias("key"),
+        to_json(
+            create_map(
+                lit("avg_sentiment"), col("avg_sentiment"), lit("button"), col("button")
+            )
+        ).alias("value"),
+    )
+
+    # Write the results to Kafka...
     query = (
-        final_df.writeStream.outputMode("append")
-        .format("console")
-        .option("truncate", False)
+        final_df_transformed.writeStream.outputMode("append")
+        .format("kafka")
+        .option("kafka.bootstrap.servers", os.getenv("KAFKA_BOOTSTRAP_SERVER"))
+        .option("kafka.security.protocol", "SASL_SSL")
+        .option("kafka.ssl.endpoint.identification.algorithm", "https")
+        .option(
+            "kafka.sasl.jaas.config",
+            "org.apache.kafka.common.security.plain.PlainLoginModule required username='{}' password='{}';".format(
+                os.getenv("KAFKA_KEY"), os.getenv("KAFKA_SECRET")
+            ),
+        )
+        .option("kafka.sasl.mechanism", "PLAIN")
+        .option("topic", os.getenv("KAFKA_TOPIC_BUTTON_NAME"))
+        .option("checkpointLocation", "/tmp/checkpoint")
         .start()
     )
     query.awaitTermination()
