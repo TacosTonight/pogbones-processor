@@ -1,4 +1,5 @@
 import unittest
+import warnings
 from unittest.mock import patch
 from data_frame_processor import DataFrameProcessor
 from pyspark.sql import SparkSession
@@ -8,6 +9,7 @@ from pyspark.sql.types import StructType, StructField, StringType
 class TestDataFrameProcessor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        warnings.filterwarnings("ignore", category=ResourceWarning)
         cls.spark = (
             SparkSession.builder.master("local[2]")
             .appName("DataFrameProcessorTest")
@@ -66,7 +68,7 @@ class TestDataFrameProcessor(unittest.TestCase):
         SCENARIO
             - Find most common word in a DataFrame
         EXPECTED RESULT
-            - The DataFrame should be one row with the most common word
+            - The DataFrame should be one row with the most common word as positive
         """
         # Define the schema for the DataFrame
         schema = StructType(
@@ -84,7 +86,19 @@ class TestDataFrameProcessor(unittest.TestCase):
         data = [
             (
                 "1",
-                "Hi Hey Hello Hello Za Za Za Za",
+                "positive",
+                "2024-02-17 18:31:00.767",
+                "channel1",
+            ),
+            (
+                "2",
+                "positive",
+                "2024-02-17 18:31:00.767",
+                "channel1",
+            ),
+            (
+                "2",
+                "negative",
                 "2024-02-17 18:31:00.767",
                 "channel1",
             ),
@@ -97,6 +111,7 @@ class TestDataFrameProcessor(unittest.TestCase):
         )
         self.assertEqual(result.columns, ["window", "avg_value", "count"])
         self.assertEqual(result.count(), 1)
+        self.assertEqual(result.collect()[0]["avg_value"], "positive")
 
     def test_add_button(self):
         """
@@ -127,7 +142,6 @@ class TestDataFrameProcessor(unittest.TestCase):
         # Mock _choose_option method
         with patch.object(self.dataframe_processor, "_choose_option", return_value="L"):
             result = self.dataframe_processor.add_button(initial_messages_df)
-            result.show()
             self.assertEqual(
                 result.columns,
                 ["window", "avg_sentiment", "button"],
