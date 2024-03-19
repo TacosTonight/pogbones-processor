@@ -1,5 +1,6 @@
 import unittest
-from unittest.mock import patch, MagicMock
+import warnings
+from unittest.mock import patch
 from data_frame_processor import DataFrameProcessor
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType
@@ -8,14 +9,13 @@ from pyspark.sql.types import StructType, StructField, StringType
 class TestDataFrameProcessor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        warnings.filterwarnings("ignore", category=ResourceWarning)
         cls.spark = (
             SparkSession.builder.master("local[2]")
             .appName("DataFrameProcessorTest")
             .getOrCreate()
         )
-        # Mock the cross encoder model
-        cls.cross_encoder_model_mock = MagicMock()
-        cls.dataframe_processor = DataFrameProcessor(None, cls.cross_encoder_model_mock)
+        cls.dataframe_processor = DataFrameProcessor(None)
 
     @classmethod
     def tearDownClass(cls):
@@ -68,7 +68,7 @@ class TestDataFrameProcessor(unittest.TestCase):
         SCENARIO
             - Find most common word in a DataFrame
         EXPECTED RESULT
-            - The DataFrame should be one row with the most common word
+            - The DataFrame should be one row with the most common word as positive
         """
         # Define the schema for the DataFrame
         schema = StructType(
@@ -86,7 +86,19 @@ class TestDataFrameProcessor(unittest.TestCase):
         data = [
             (
                 "1",
-                "Hi Hey Hello Hello Za Za Za Za",
+                "positive",
+                "2024-02-17 18:31:00.767",
+                "channel1",
+            ),
+            (
+                "2",
+                "positive",
+                "2024-02-17 18:31:00.767",
+                "channel1",
+            ),
+            (
+                "2",
+                "negative",
                 "2024-02-17 18:31:00.767",
                 "channel1",
             ),
@@ -97,8 +109,9 @@ class TestDataFrameProcessor(unittest.TestCase):
         result = self.dataframe_processor.find_most_common_word_in_window(
             initial_messages_df, "10 seconds", "value"
         )
-        self.assertEqual(result.columns, ["window", "word", "word_count"])
+        self.assertEqual(result.columns, ["window", "avg_value", "count"])
         self.assertEqual(result.count(), 1)
+        self.assertEqual(result.collect()[0]["avg_value"], "positive")
 
     def test_add_button(self):
         """
@@ -111,7 +124,6 @@ class TestDataFrameProcessor(unittest.TestCase):
         schema = StructType(
             [
                 StructField("window", StringType(), False),
-                StructField("most_common_word", StringType(), False),
                 StructField("avg_sentiment", StringType(), False),
             ]
         )
@@ -120,7 +132,6 @@ class TestDataFrameProcessor(unittest.TestCase):
         data = [
             (
                 "windowspec",
-                "Hi",
                 "positive",
             ),
         ]
@@ -133,56 +144,26 @@ class TestDataFrameProcessor(unittest.TestCase):
             result = self.dataframe_processor.add_button(initial_messages_df)
             self.assertEqual(
                 result.columns,
-                ["window", "most_common_word", "avg_sentiment", "button"],
+                ["window", "avg_sentiment", "button"],
             )
             self.assertEqual(result.count(), 1)
 
     def test_choose_option_positive(self):
         """
         SCENARIO
-            - Choose an option based on the most common word and positive sentiment
+            - Choose an option based on the sentiment
         EXPECTED RESULT
-            - The option should be "L"
+            - The option should be either "up", "right", or "A"
         """
-        self.cross_encoder_model_mock.rank.return_value = [
-            {"corpus_id": 0, "score": 0.37},
-            {"corpus_id": 1, "score": 0.34},
-            {"corpus_id": 2, "score": 0.32},
-            {"corpus_id": 3, "score": 0.30},
-            {"corpus_id": 4, "score": 0.28},
-            {"corpus_id": 5, "score": 0.27},
-            {"corpus_id": 6, "score": 0.26},
-            {"corpus_id": 7, "score": 0.25},
-            {"corpus_id": 8, "score": 0.25},
-            {"corpus_id": 9, "score": 0.23},
-        ]
-
-        most_common_word = "Hi"
-        sentiment = "positive"
-        option = self.dataframe_processor._choose_option(most_common_word, sentiment)
-        self.assertEqual(option, "L")
+        result = self.dataframe_processor._choose_option("positive")
+        self.assertIn(result, ["up", "right", "A"])
 
     def test_choose_option_negative(self):
         """
         SCENARIO
-            - Choose an option based on the most common word and negative sentiment
+            - Choose an option based on negative sentiment
         EXPECTED RESULT
-            - The option should be "A"
+            - The option should be either "down", "left", or "B"
         """
-        self.cross_encoder_model_mock.rank.return_value = [
-            {"corpus_id": 0, "score": 0.37},
-            {"corpus_id": 1, "score": 0.34},
-            {"corpus_id": 2, "score": 0.32},
-            {"corpus_id": 3, "score": 0.30},
-            {"corpus_id": 4, "score": 0.28},
-            {"corpus_id": 5, "score": 0.27},
-            {"corpus_id": 6, "score": 0.26},
-            {"corpus_id": 7, "score": 0.25},
-            {"corpus_id": 8, "score": 0.25},
-            {"corpus_id": 9, "score": 0.23},
-        ]
-
-        most_common_word = "Hi"
-        sentiment = "negative"
-        option = self.dataframe_processor._choose_option(most_common_word, sentiment)
-        self.assertEqual(option, "A")
+        result = self.dataframe_processor._choose_option("negative")
+        self.assertIn(result, ["down", "left", "B"])
