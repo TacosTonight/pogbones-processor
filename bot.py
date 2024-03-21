@@ -1,3 +1,13 @@
+"""
+This file was created to demonstrate how to use the TwitchIO library to create 
+a bot that can connect to Twitch chat and run sentiment analysis without using 
+DE technologies like Kafka or Spark Structured Streaming that I used in 
+twitch_producer.py and twitch_consumer.py.
+
+This was essentially a proof of concept so I could see how Kafka and Spark make 
+the process easier and more scalable when I moved to the next step of the project.
+"""
+
 import asyncio
 import time
 import heapq

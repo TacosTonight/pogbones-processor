@@ -1,3 +1,8 @@
+"""
+Simple downstream consumer to simulate what could happen after the data is processed
+This listens to average sentiment topic and presses the button to control pokemon
+"""
+
 import pyautogui
 import time
 import os
