@@ -1,3 +1,8 @@
+"""
+Used in bot.py to create a ProcessedMessage object that extends the 
+Message object from twitchio to add sentiment analysis.
+"""
+
 from twitchio import Message
 
 
